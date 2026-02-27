@@ -273,10 +273,31 @@
             const zones = calcImpact(mag);
             const isCrit = mag >= 5.0;
 
-            L.circle([lat, lon], { radius: zones.green, color: 'var(--safe)', weight: 1, fillOpacity: 0.05 }).addTo(layerGroup);
-            L.circle([lat, lon], { radius: zones.yellow, color: 'var(--warning)', weight: 1, fillOpacity: 0.1 }).addTo(layerGroup);
-            L.circle([lat, lon], { radius: zones.red, color: 'var(--danger)', weight: 1.5, fillOpacity: 0.2 }).addTo(layerGroup);
-            L.circleMarker([lat, lon], { radius: 10, color: '#fff', fillColor: isCrit ? 'var(--danger)' : 'var(--accent)', fillOpacity: 1, weight: 3 }).addTo(layerGroup);
+            if(currentTab === 'live') {
+                // Live View: Classic Impact Zones
+                L.circle([lat, lon], { radius: zones.green, color: 'var(--safe)', weight: 1, fillOpacity: 0.05 }).addTo(layerGroup);
+                L.circle([lat, lon], { radius: zones.yellow, color: 'var(--warning)', weight: 1, fillOpacity: 0.1 }).addTo(layerGroup);
+                L.circle([lat, lon], { radius: zones.red, color: 'var(--danger)', weight: 1.5, fillOpacity: 0.2 }).addTo(layerGroup);
+                L.circleMarker([lat, lon], { radius: 10, color: '#fff', fillColor: isCrit ? 'var(--danger)' : 'var(--accent)', fillOpacity: 1, weight: 3 }).addTo(layerGroup);
+            } else {
+                // Past Records: Updated Simple Design
+                const color = isCrit ? 'var(--danger)' : 'var(--accent)';
+                L.circleMarker([lat, lon], {
+                    radius: 4 + (mag * 1.5),
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.6,
+                    weight: 1
+                }).addTo(layerGroup);
+                
+                L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        className: 'mag-label',
+                        html: `<div style="font-size:10px; font-weight:bold; color:white; text-shadow: 0 0 3px black;">${mag.toFixed(1)}</div>`,
+                        iconSize: [20, 20]
+                    })
+                }).addTo(layerGroup);
+            }
 
             stream.innerHTML += `
                 <div class="event-card" onclick="map.flyTo([${lat}, ${lon}], 9); sheet.style.transform='translateY(80vh)'">
