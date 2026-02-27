@@ -154,18 +154,50 @@
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-    const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([23.8, 90.3], 6);
+    const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([23.8, 90.3], 7);
     let layerGroup = L.layerGroup().addTo(map);
+    let faultGroup = L.layerGroup().addTo(map);
     let lastId = null, timeLeft = 10, isLive = false;
     let currentTab = 'live';
     let allData = [];
 
-    // Dark Matter Layer
+    // Map Tiles
     const darkTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png');
-    // Light Tile Layer
-    const lightTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
+    // Bengali Light Tile Layer
+    const lightTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap Bengali'
+    });
     
     darkTile.addTo(map);
+
+    // --- Enhanced Fault Lines Logic (GSB Indicative Data) ---
+    function addFaultLines() {
+        faultGroup.clearLayers();
+        const faults = [
+            { name: 'Dauki Fault', path: [[25.10, 90.00], [25.15, 91.50], [25.10, 92.50]], danger: 9.5 },
+            { name: 'Madhupur Fault', path: [[23.70, 90.00], [24.10, 90.10], [24.60, 90.25]], danger: 7.5 },
+            { name: 'Sylhet Fault', path: [[24.50, 91.30], [24.80, 91.80], [25.10, 92.00]], danger: 8.0 },
+            { name: 'Arakan-Yoma Fold Belt', path: [[20.00, 92.30], [21.50, 93.00], [23.00, 93.80], [24.50, 94.50]], danger: 9.0 },
+            { name: 'Plate Boundary', path: [[20.00, 91.00], [22.00, 92.00], [25.00, 93.00], [27.00, 95.00]], danger: 10 }
+        ];
+
+        faults.forEach(f => {
+            L.polyline(f.path, {
+                color: f.danger > 9 ? '#ff0000' : '#ff9900',
+                weight: f.danger * 1.5,
+                opacity: 0.2,
+                smoothFactor: 1
+            }).addTo(faultGroup);
+            
+            L.polyline(f.path, {
+                color: f.danger > 9 ? '#ff5555' : '#ffcc00',
+                weight: f.danger / 2,
+                opacity: 0.8,
+                dashArray: f.danger > 8 ? null : '5, 5'
+            }).addTo(faultGroup);
+        });
+    }
+    addFaultLines();
 
     function toggleMode() {
         document.body.classList.toggle('light-mode');
@@ -338,4 +370,3 @@
 </script>
 </body>
 </html>
-
