@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SENTRY NEXUS REGIONAL | Abdullah Al Fahim</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Outfit:wght@300;600;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #00e0ff; --danger: #ff0055; --warning: #ffb300; --safe: #00ffaa;
+            --bg: #030508; --glass: rgba(10, 13, 18, 0.9); --border: rgba(255, 255, 255, 0.08);
+            --card: rgba(255, 255, 255, 0.03); --text: #ffffff;
+        }
+        .light-mode {
+            --bg: #f8fafc; --glass: rgba(255, 255, 255, 0.95); --border: rgba(0, 0, 0, 0.1);
+            --card: #ffffff; --text: #0f172a; --accent: #4f46e5;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif; height: 100vh; overflow: hidden; transition: 0.3s; }
+
+        #map { height: 100vh; width: 100%; position: absolute; z-index: 1; filter: contrast(1.1) brightness(0.7); }
+
+        /* Command HUD */
+        .hud-ctrl {
+            position: fixed; top: 16px; left: 50%; transform: translateX(-50%); width: 92%;
+            z-index: 2000; padding: 12px 20px; border-radius: 20px;
+            backdrop-filter: blur(30px); background: var(--glass);
+            border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .region-id { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 2px; color: var(--accent); }
+
+        /* Filter Engine */
+        .filter-hub { display: flex; gap: 8px; margin: 15px 0; background: rgba(0,0,0,0.2); padding: 5px; border-radius: 15px; border: 1px solid var(--border); }
+        .f-btn { flex: 1; border: none; background: none; padding: 10px; border-radius: 10px; color: var(--text); font-weight: 800; font-size: 11px; cursor: pointer; transition: 0.3s; opacity: 0.4; }
+        .f-btn.active { background: var(--accent); color: #fff; opacity: 1; }
+
+        /* Impact Sheet */
+        .cmd-panel {
+            position: fixed; bottom: 0; left: 0; right: 0; height: 90vh;
+            background: linear-gradient(180deg, var(--glass) 0%, var(--bg) 100%);
+            backdrop-filter: blur(50px); border-radius: 40px 40px 0 0; z-index: 1500;
+            border-top: 1px solid var(--border); transform: translateY(78vh);
+            transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .cmd-panel.active { transform: translateY(12vh); }
+
+        .drag-trigger { width: 100%; padding: 25px 0 10px; display: flex; flex-direction: column; align-items: center; cursor: grab; }
+        .bar { width: 40px; height: 4px; background: var(--accent); border-radius: 10px; opacity: 0.2; }
+
+        .scroller { padding: 0 24px 120px; overflow-y: auto; height: 100%; }
+
+        /* Seismic Cards */
+        .node {
+            background: var(--card); border: 1px solid var(--border);
+            padding: 22px; border-radius: 30px; margin-bottom: 16px;
+            display: flex; gap: 18px; transition: 0.3s;
+        }
+        .node:active { transform: scale(0.96); }
+
+        .mag-ui {
+            min-width: 65px; height: 65px; border-radius: 20px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: #000; border: 2.5px solid var(--accent); color: #fff;
+            box-shadow: 0 0 15px var(--border);
+        }
+
+        .badge { font-size: 9px; font-weight: 800; padding: 6px 12px; border-radius: 12px; background: rgba(0,0,0,0.2); margin-top: 10px; display: inline-flex; gap: 6px; }
+
+        .theme-node { background: var(--card); border: 1px solid var(--border); padding: 8px; border-radius: 50%; cursor: pointer; color: var(--text); }
+
+        #load-state { display: none; text-align: center; padding: 40px; font-weight: 800; letter-spacing: 2px; color: var(--accent); }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="hud-ctrl">
+    <div class="region-id">BD-IN-MM REGIONAL SENTRY</div>
+    <div style="display:flex; align-items:center; gap:12px;">
+        <button class="theme-node" onclick="toggleView()">🌓</button>
+        <div id="status" style="font-family:'Space Grotesk'; font-size:10px; color:var(--safe); font-weight:700;">LIVE</div>
+    </div>
+</div>
+
+<div class="cmd-panel" id="panel">
+    <div class="drag-trigger" id="drag">
+        <div class="bar"></div>
+    </div>
+    
+    <div class="scroller">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <span style="font-size:9px; opacity:0.4; letter-spacing:6px; text-transform:uppercase;">Architect</span>
+            <h2 style="font-family:'Space Grotesk'; font-size:22px; font-weight:700;">ABDULLAH AL FAHIM</h2>
+        </div>
+
+        <div class="filter-hub">
+            <button class="f-btn active" id="live-btn" onclick="sync('live')">LIVE 24H</button>
+            <button class="f-btn" id="hist-btn" onclick="sync('hist')">15D HISTORY</button>
+        </div>
+
+        <div id="load-state">SYNCING REGIONAL SENSORS...</div>
+        <div id="stream"></div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+    const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([23.8, 90.3], 6);
+    let layerGroup = L.layerGroup().addTo(map);
+    let mode = 'live';
+    let dark = true;
+
+    const tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+    function toggleView() {
+        dark = !dark;
+        document.body.classList.toggle('light-mode');
+        tiles.setUrl(dark ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png');
+    }
+
+    // --- Physics Drag ---
+    const panel = document.getElementById('panel');
+    const drag = document.getElementById('drag');
+    let sY, sP;
+
+    drag.addEventListener('touchstart', (e) => {
+        sY = e.touches[0].clientY;
+        const s = window.getComputedStyle(panel).transform;
+        sP = s !== 'none' ? parseInt(s.split(',')[5]) : 0;
+        panel.style.transition = 'none';
+    });
+
+    drag.addEventListener('touchmove', (e) => {
+        let p = sP + (e.touches[0].clientY - sY);
+        if(p < window.innerHeight * 0.1) p = window.innerHeight * 0.1;
+        panel.style.transform = `translateY(${p}px)`;
+    });
+
+    drag.addEventListener('touchend', () => {
+        panel.style.transition = 'transform 0.8s cubic-bezier(0.16, 1, 0.3, 1)';
+        const cY = parseInt(window.getComputedStyle(panel).transform.split(',')[5]);
+        panel.style.transform = cY < window.innerHeight * 0.45 ? 'translateY(12vh)' : 'translateY(78vh)';
+    });
+
+    function zones(m) {
+        const r = Math.pow(10, (0.5 * m - 1.25)) * 14000;
+        return { r, y: r * 2.5, g: r * 5 };
+    }
+
+    function sync(m) {
+        mode = m;
+        document.querySelectorAll('.f-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(m === 'live' ? 'live-btn' : 'hist-btn').classList.add('active');
+        fetchData();
+    }
+
+    async function fetchData() {
+        const load = document.getElementById('load-state');
+        const list = document.getElementById('stream');
+        load.style.display = 'block';
+        list.innerHTML = '';
+        layerGroup.clearLayers();
+
+        // Regional Boundary: Lat 15-30, Lon 85-100 (BD, NE India, Myanmar)
+        let url = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson";
+        if(mode === 'hist') {
+            const d = new Date(); d.setDate(d.getDate() - 15);
+            url = `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_month.geojson`;
+        }
+
+        try {
+            const r = await fetch(url);
+            const d = await r.json();
+            load.style.display = 'none';
+
+            const filtered = d.features.filter(f => {
+                const [ln, lt] = f.geometry.coordinates;
+                return lt > 15 && lt < 30 && ln > 85 && ln < 100;
+            }).sort((a,b) => b.properties.time - a.properties.time);
+
+            if(filtered.length === 0) { list.innerHTML = '<div style="text-align:center; padding:20px; opacity:0.5;">No Regional Events Found</div>'; return; }
+
+            filtered.forEach(eq => {
+                const [ln, lt] = eq.geometry.coordinates;
+                const { mag, place, time } = eq.properties;
+                const z = zones(mag);
+                const isDanger = mag >= 5.0;
+
+                L.circle([lt, ln], { radius: z.g, color: '#00ffaa', weight: 1, fillOpacity: 0.05 }).addTo(layerGroup);
+                L.circle([lt, ln], { radius: z.y, color: '#ffb300', weight: 1, fillOpacity: 0.1 }).addTo(layerGroup);
+                L.circle([lt, ln], { radius: z.r, color: '#ff0055', weight: 1.5, fillOpacity: 0.2 }).addTo(layerGroup);
+                L.circleMarker([lt, ln], { radius: 8, color: '#fff', fillColor: isDanger ? '#ff0055' : '#00e0ff', fillOpacity: 1, weight: 2 }).addTo(layerGroup);
+
+                list.innerHTML += `
+                    <div class="node" onclick="map.flyTo([${lt}, ${ln}], 8); panel.style.transform='translateY(78vh)'">
+                        <div class="mag-ui" style="border-color:${isDanger ? '#ff0055' : '#00e0ff'}">
+                            <span style="font-size:20px; font-weight:900;">${mag.toFixed(1)}</span>
+                            <span style="font-size:8px; opacity:0.5;">MAG</span>
+                        </div>
+                        <div style="flex:1">
+                            <div style="font-weight:600; font-size:16px;">${place}</div>
+                            <div style="font-size:11px; opacity:0.4; margin-top:3px;">${new Date(time).toLocaleString('bn-BD')}</div>
+                            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                <span class="badge" style="color:#ff0055">🔴 ${Math.round(z.r/1000)}km</span>
+                                <span class="badge" style="color:#ffb300">🟡 ${Math.round(z.y/1000)}km</span>
+                                <span class="badge" style="color:#00ffaa">🟢 ${Math.round(z.g/1000)}km</span>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+        } catch(e) { load.innerText = "Sync Failed"; }
+    }
+
+    setInterval(() => { if(mode === 'live') fetchData(); }, 40000);
+    fetchData();
+</script>
+</body>
+</html>
