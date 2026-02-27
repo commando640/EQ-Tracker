@@ -1,234 +1,307 @@
 <!DOCTYPE html>
 <html lang="bn">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pro Bangladesh Earthquake Monitor</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<style>
-:root {
-    --bg-color: #121212;
-    --card-bg: #1e1e1e;
-    --text-color: #e0e0e0;
-    --accent-red: #ff5252;
-    --primary-green: #4caf50;
-    --table-hover: #252525;
-}
-[data-theme="light"] {
-    --bg-color: #f4f4f4;
-    --card-bg: #ffffff;
-    --text-color: #333333;
-    --table-hover: #f0f0f0;
-}
-body { margin:0; font-family: 'Segoe UI', Roboto, sans-serif; background: var(--bg-color); color: var(--text-color); transition: all 0.3s; }
-header { background: var(--card-bg); padding: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-red); }
-h1 { margin: 0; color: #fff; font-size: 1.5em; }
-[data-theme="light"] h1 { color: #333; }
-#map { height: 60vh; width: 100%; z-index: 1; }
-.container { padding: 20px; max-width: 1200px; margin: auto; }
-.status-panel { background: var(--card-bg); padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #444; }
-.live-indicator { color: var(--primary-green); font-weight: bold; animation: blink 1s infinite; }
-@keyframes blink { 50% { opacity: 0; } }
-.controls { display: flex; gap: 10px; }
-button { padding: 8px 12px; cursor: pointer; border-radius: 4px; border: 1px solid #555; background: var(--card-bg); color: var(--text-color); }
-.table-section { background: var(--card-bg); padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
-th, td { border-bottom: 1px solid #333; padding: 12px; text-align: left; }
-[data-theme="light"] th, [data-theme="light"] td { border-bottom: 1px solid #ddd; }
-th { color: var(--primary-green); }
-tr:hover { background-color: var(--table-hover); }
-.loading { text-align: center; padding: 20px; color: #aaa; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuantumEarth :: Multi-API Seismic Monitor</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --bg-color: #050507;
+            --panel-bg: rgba(10, 10, 12, 0.9);
+            --text-main: #ffffff;
+            --text-sub: #a0a0a0;
+            --accent: #00f2fe;
+            --danger: #ff0055;
+            --warning: #ffcc00;
+            --border: rgba(255, 255, 255, 0.1);
+            --font-family: 'Inter', system-ui, sans-serif;
+        }
 
-/* Dynamic Pulsing markers */
-.leaflet-marker-icon.pulse {
-  border-radius: 50%;
-  background: rgba(255,0,0,0.5);
-  border: 2px solid #fff;
-  animation: pulse 1.5s infinite;
-}
-@keyframes pulse {
-  0% { transform: scale(0.7); opacity:0.7; }
-  50% { transform: scale(1.5); opacity:0; }
-  100% { transform: scale(0.7); opacity:0.7; }
-}
-</style>
+        [data-theme="light"] {
+            --bg-color: #f0f2f5;
+            --panel-bg: rgba(255, 255, 255, 0.95);
+            --text-main: #1a1a1a;
+            --text-sub: #555555;
+            --accent: #0077ff;
+            --border: rgba(0, 0, 0, 0.1);
+        }
+
+        body { margin: 0; font-family: var(--font-family); background: var(--bg-color); color: var(--text-main); overflow: hidden; height: 100vh; transition: all 0.3s; }
+
+        /* Header */
+        header { position: absolute; top: 10px; left: 10px; z-index: 1000; background: var(--panel-bg); backdrop-filter: blur(10px); padding: 10px 15px; border-radius: 8px; border: 1px solid var(--border); display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        header h1 { margin: 0; font-size: 0.9em; letter-spacing: 2px; text-transform: uppercase; }
+        header h1 span { color: var(--accent); }
+        .live-badge { color: var(--danger); font-size: 0.7em; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+        .live-dot { width: 7px; height: 7px; background: var(--danger); border-radius: 50%; animation: pulse 1.5s infinite; }
+        #countdown { font-size: 0.7em; color: var(--text-sub); }
+
+        /* Theme Toggle */
+        #themeToggle { position: absolute; top: 10px; right: 10px; z-index: 1000; background: var(--panel-bg); border: 1px solid var(--border); color: var(--text-main); padding: 8px; border-radius: 8px; cursor: pointer; backdrop-filter: blur(10px); }
+
+        /* Map */
+        #map { height: 100vh; width: 100%; z-index: 1; }
+
+        /* Shutter Panel (Draggable) */
+        .shutter {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 40vh;
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border);
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            z-index: 1001;
+            transition: height 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.4);
+        }
+        .shutter-handle {
+            width: 50px;
+            height: 6px;
+            background: var(--text-sub);
+            border-radius: 3px;
+            margin: 10px auto;
+            cursor: ns-resize;
+        }
+        .shutter-content { padding: 0 20px 20px 20px; overflow-y: auto; flex-grow: 1; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .tab-btn { background: none; border: none; color: var(--text-sub); padding: 8px 15px; cursor: pointer; font-size: 0.85em; font-weight: bold; border-radius: 4px; }
+        .tab-btn.active { background: var(--accent); color: #fff; }
+
+        /* Table Styling */
+        table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
+        th { text-align: left; color: var(--text-sub); padding: 10px; font-size: 0.75em; letter-spacing: 1px; }
+        tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; }
+        tbody tr:hover { background: rgba(255,255,255,0.05); }
+        td { padding: 12px 10px; }
+        .mag-high { color: var(--danger); font-weight: bold; }
+        .mag-med { color: var(--warning); font-weight: bold; }
+        .mag-low { color: var(--accent); font-weight: bold; }
+
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 0, 85, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 0, 85, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 0, 85, 0); } }
+        
+        /* Popup */
+        .leaflet-popup-content-wrapper { background: var(--panel-bg); color: var(--text-main); border: 1px solid var(--border); }
+        .leaflet-popup-tip { background: var(--panel-bg); }
+    </style>
 </head>
 <body>
 
 <header>
-    <div>
-        <h1>🌍 Earthquake Monitor</h1>
-        <div class="subtitle">বাংলাদেশ ও পার্শ্ববর্তী অঞ্চল</div>
-    </div>
-    <div class="controls">
-        <button onclick="toggleTheme()">🌓 Mode</button>
-    </div>
+    <h1>Quantum<span>Earth</span></h1>
+    <div class="live-badge"><div class="live-dot"></div> LIVE</div>
+    <div id="countdown">Refresh in: 60s</div>
 </header>
 
-<div class="status-panel">
-    স্ট্যাটাস: <span id="statusText">লোড হচ্ছে...</span> | <span class="live-indicator">● LIVE</span>
-</div>
+<button id="themeToggle" onclick="toggleTheme()">🌓</button>
 
 <div id="map"></div>
 
-<div class="container">
-    <div class="table-section">
-        <h2>⚡ লাইভ ২৪ ঘন্টা (সকল কম্পন)</h2>
-        <div id="liveLoading" class="loading">ডাটা লোড হচ্ছে...</div>
-        <table id="liveTable" style="display:none;">
-            <thead>
-                <tr>
-                    <th>সময় (Local)</th>
-                    <th>তীব্রতা</th>
-                    <th>গভীরতা</th>
-                    <th>অবস্থান</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
-
-    <div class="table-section">
-        <h2>📜 বিগত ৩০ দিনের রেকর্ড (ম্যাগনিচিউড > ৪.০)</h2>
-        <div id="historyLoading" class="loading">ডাটা লোড হচ্ছে...</div>
-        <table id="historyTable" style="display:none;">
-            <thead>
-                <tr>
-                    <th>তারিখ (Local)</th>
-                    <th>তীব্রতা</th>
-                    <th>অবস্থান</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+<div class="shutter" id="shutter">
+    <div class="shutter-handle" id="handle"></div>
+    <div class="shutter-content">
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('live')">২৪ ঘণ্টা (লাইভ)</button>
+            <button class="tab-btn" onclick="showTab('history')">৩০ দিন (হিস্টোরি)</button>
+        </div>
+        
+        <div id="liveTab" class="tab-content">
+            <table id="liveTable">
+                <thead><tr><th>অবস্থান</th><th>তীব্রতা</th><th>গভীরতা</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        
+        <div id="historyTab" class="tab-content" style="display:none;">
+            <table id="historyTable">
+                <thead><tr><th>তারিখ</th><th>অবস্থান</th><th>তীব্রতা</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
     </div>
 </div>
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-// Theme
-function toggleTheme() {
-    const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', current);
-    localStorage.setItem('theme', current);
-}
-document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'dark');
-
-// Map
-const map = L.map('map').setView([23.6850, 90.3563], 6);
-const savedTheme = document.documentElement.getAttribute('data-theme');
-L.tileLayer(savedTheme === 'dark' ? 
-    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' :
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
-
-const markersGroup = L.layerGroup().addTo(map);
-const statusText = document.getElementById("statusText");
-
-// Fetch data
-async function fetchEarthquakeData() {
-    statusText.innerText = "ডাটা আনার চেষ্টা করছে...";
-    statusText.style.color = "yellow";
-
-    const bbox = {minlat:10, maxlat:32, minlon:80, maxlon:98}; 
-    const baseUrl = "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson";
-
-    const now = new Date();
-    const nowISO = now.toISOString();
-    const past24h = new Date(now.getTime() - 24*60*60*1000).toISOString();
-    const past30d = new Date(now.getTime() - 30*24*60*60*1000).toISOString();
-
-    try {
-        // Live 24h
-        const liveRes = await fetch(`${baseUrl}&starttime=${past24h}&endtime=${nowISO}&minmagnitude=1&maxlatitude=${bbox.maxlat}&minlatitude=${bbox.minlat}&maxlongitude=${bbox.maxlon}&minlongitude=${bbox.minlon}`);
-        if(!liveRes.ok) throw new Error("Live API failed");
-        const liveData = await liveRes.json();
-        renderTable("liveTable","liveLoading",liveData,true);
-
-        // History 30d
-        const histRes = await fetch(`${baseUrl}&starttime=${past30d}&endtime=${past24h}&minmagnitude=4&maxlatitude=${bbox.maxlat}&minlatitude=${bbox.minlat}&maxlongitude=${bbox.maxlon}&minlongitude=${bbox.minlon}`);
-        if(!histRes.ok) throw new Error("History API failed");
-        const histData = await histRes.json();
-        renderTable("historyTable","historyLoading",histData,false);
-
-        statusText.innerText = "লাইভ (প্রতি ১০ সে. আপডেট)";
-        statusText.style.color = "#4caf50";
-
-    } catch(err) {
-        console.error(err);
-        statusText.innerText = "ডাটা লোড করতে ব্যর্থ!";
-        statusText.style.color = "red";
+    // Theme Toggle
+    function toggleTheme() {
+        const body = document.body;
+        const currentTheme = body.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        body.setAttribute('data-theme', currentTheme);
+        localStorage.setItem('theme', currentTheme);
+        location.reload(); 
     }
-}
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.body.setAttribute('data-theme', savedTheme);
 
-// Render table + dynamic markers
-function renderTable(tableId, loadingId, data, isLive) {
-    const tbody = document.querySelector(`#${tableId} tbody`);
-    const loadingDiv = document.getElementById(loadingId);
-    const tableEl = document.getElementById(tableId);
-    tbody.innerHTML = "";
-    if(isLive) markersGroup.clearLayers();
+    // Map Setup
+    const map = L.map('map', { zoomControl: false }).setView([23.6850, 90.3563], 7);
+    const tileUrl = savedTheme === 'dark' 
+        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    L.tileLayer(tileUrl).addTo(map);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    if(!data.features || data.features.length===0){
-        loadingDiv.innerText = "ডাটা পাওয়া যায়নি।";
-        tableEl.style.display="none";
-        return;
-    }
+    // Fault Lines
+    const faultLines = [
+        [[25.0, 90.0], [25.5, 92.5]],
+        [[21.0, 91.5], [24.5, 93.5]]
+    ];
+    faultLines.forEach(line => L.polyline(line, {color: '#ff4757', weight: 2, opacity: 0.6}).addTo(map));
 
-    loadingDiv.style.display="none";
-    tableEl.style.display="table";
+    const markersGroup = L.layerGroup().addTo(map);
+    let countdown = 60;
 
-    data.features.forEach(q=>{
-        const p = q.properties;
-        const c = q.geometry.coordinates;
-        const row = document.createElement("tr");
+    async function fetchData() {
+        markersGroup.clearLayers();
+        
+        // Define APIs
+        const usgsUrl = "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&maxlatitude=27&minlatitude=20&maxlongitude=94&minlongitude=87";
+        const emscUrl = "https://www.seismicportal.eu/fdsnws/event/1/query?format=json&maxlatitude=27&minlatitude=20&maxlongitude=94&minlongitude=87";
 
-        const color = getMagColor(p.mag);
-        const size = Math.max(p.mag*3,5);
+        try {
+            // Using a CORS proxy to prevent blocking if necessary, 
+            // but these APIs usually allow direct access.
+            const [usgsRes, emscRes] = await Promise.all([
+                fetch(`${usgsUrl}&starttime=NOW-30days&minmagnitude=3.0`),
+                fetch(`${emscUrl}&start=NOW-30days&minmag=3.0`)
+            ]);
 
-        if(isLive){
-            row.innerHTML = `
-                <td>${new Date(p.time).toLocaleTimeString('bn-BD')}</td>
-                <td style="color:${color}; font-weight:bold;">${p.mag}</td>
-                <td>${c[2].toFixed(1)} km</td>
-                <td>${p.place}</td>
-            `;
-            const circle = L.circleMarker([c[1],c[0]],{
-                radius: size,
-                fillColor: color,
-                color:"#fff",
-                weight:1,
-                fillOpacity:0.7
-            }).bindPopup(`<b>${p.place}</b><br>Mag: ${p.mag}<br>Depth: ${c[2].toFixed(1)}km`);
-            markersGroup.addLayer(circle);
+            const usgsData = await usgsRes.json();
+            const emscData = await emscRes.json();
 
-            const pulseIcon = L.divIcon({
-                className:"pulse",
-                iconSize:[size*2,size*2]
+            let mergedFeatures = [];
+            
+            // Normalize USGS
+            usgsData.features.forEach(f => {
+                mergedFeatures.push({
+                    mag: f.properties.mag,
+                    place: f.properties.place,
+                    time: f.properties.time,
+                    depth: f.geometry.coordinates[2],
+                    lat: f.geometry.coordinates[1],
+                    lon: f.geometry.coordinates[0],
+                    source: 'USGS'
+                });
             });
-            L.marker([c[1],c[0]],{icon:pulseIcon}).addTo(markersGroup);
-        } else {
-            row.innerHTML = `
-                <td>${new Date(p.time).toLocaleDateString('bn-BD')}</td>
-                <td style="color:${color}; font-weight:bold;">${p.mag}</td>
-                <td>${p.place}</td>
-            `;
+
+            // Normalize EMSC
+            emscData.features.forEach(f => {
+                const emscTime = new Date(f.properties.time).getTime();
+                const isDuplicate = mergedFeatures.some(m => 
+                    Math.abs(m.time - emscTime) < 60000 && 
+                    Math.abs(m.lat - f.geometry.coordinates[1]) < 0.1
+                );
+
+                if (!isDuplicate) {
+                    mergedFeatures.push({
+                        mag: f.properties.mag,
+                        place: f.properties.flynn_region || f.properties.place,
+                        time: emscTime,
+                        depth: f.geometry.coordinates[2],
+                        lat: f.geometry.coordinates[1],
+                        lon: f.geometry.coordinates[0],
+                        source: 'EMSC'
+                    });
+                }
+            });
+
+            mergedFeatures.sort((a, b) => b.time - a.time);
+
+            const now = new Date().getTime();
+            const oneDay = 24 * 60 * 60 * 1000;
+            
+            const liveFeatures = mergedFeatures.filter(f => (now - f.time) < oneDay);
+            const historyFeatures = mergedFeatures.filter(f => f.mag >= 4.0);
+
+            renderTable(liveFeatures, 'liveTable', true);
+            renderTable(historyFeatures, 'historyTable', false);
+
+            countdown = 60;
+        } catch (err) { 
+            console.error(err);
+            document.querySelector('#liveTable tbody').innerHTML = "<tr><td colspan='3' style='text-align:center;'>ডাটা লোড করতে সমস্যা হচ্ছে।</td></tr>";
         }
-        tbody.appendChild(row);
+    }
+
+    function renderTable(features, tableId, isLive) {
+        const tbody = document.querySelector(`#${tableId} tbody`);
+        tbody.innerHTML = "";
+        
+        if (features.length === 0) {
+            tbody.innerHTML = "<tr><td colspan='3' style='text-align:center;'>তথ্য পাওয়া যায়নি।</td></tr>";
+            return;
+        }
+
+        features.forEach(f => {
+            const row = document.createElement("tr");
+            const timeString = new Date(f.time).toLocaleString('en-US', { timeZone: 'Asia/Dhaka' });
+
+            row.innerHTML = isLive 
+                ? `<td>${f.place}</td><td class="${getMagClass(f.mag)}">${f.mag.toFixed(1)}</td><td>${f.depth.toFixed(0)} km</td>`
+                : `<td>${new Date(f.time).toLocaleDateString()}</td><td>${f.place}</td><td class="${getMagClass(f.mag)}">${f.mag.toFixed(1)}</td>`;
+            
+            row.onclick = () => {
+                map.flyTo([f.lat, f.lon], 8);
+                createPopup(f.lat, f.lon, f);
+            };
+            tbody.appendChild(row);
+
+            // Add Marker
+            const marker = L.circleMarker([f.lat, f.lon], {
+                radius: Math.max(f.mag * 2, 5),
+                fillColor: getMagColor(f.mag),
+                color: '#fff',
+                weight: 1,
+                fillOpacity: 0.7
+            });
+            marker.bindPopup(`<b>${f.place}</b><br>Mag: ${f.mag}<br>Time: ${timeString}<br>Source: ${f.source}`);
+            markersGroup.addLayer(marker);
+        });
+    }
+
+    function getMagClass(mag) { return mag >= 5 ? 'mag-high' : (mag >= 4 ? 'mag-med' : 'mag-low'); }
+    function getMagColor(mag) { return mag >= 5 ? '#ff0055' : (mag >= 4 ? '#ffcc00' : '#00f2fe'); }
+    function createPopup(lat, lon, f) {
+        L.popup().setLatLng([lat, lon]).setContent(`<b>${f.place}</b><br>Magnitude: ${f.mag}<br>Depth: ${f.depth.toFixed(1)} km<br>Source: ${f.source}`).openOn(map);
+    }
+
+    function showTab(tab) {
+        document.getElementById('liveTab').style.display = tab === 'live' ? 'block' : 'none';
+        document.getElementById('historyTab').style.display = tab === 'history' ? 'block' : 'none';
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.innerText.includes(tab === 'live' ? 'লাইভ' : 'হিস্টোরি')));
+    }
+
+    // Countdown Timer
+    setInterval(() => {
+        countdown--;
+        document.getElementById('countdown').innerText = `Refresh in: ${countdown}s`;
+        if (countdown <= 0) fetchData();
+    }, 1000);
+
+    // Draggable Shutter
+    const shutter = document.getElementById('shutter');
+    const handle = document.getElementById('handle');
+    let isDragging = false;
+    handle.addEventListener('mousedown', () => isDragging = true);
+    window.addEventListener('mouseup', () => isDragging = false);
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const newHeight = window.innerHeight - e.clientY;
+        if (newHeight > 100 && newHeight < window.innerHeight - 50) {
+            shutter.style.height = newHeight + 'px';
+        }
     });
-}
 
-// Magnitude color gradient
-function getMagColor(mag){
-    if(mag>=5) return "#ff5252";
-    if(mag>=4) return "#ff9800";
-    return "#f1c40f";
-}
-
-// Start fetching
-fetchEarthquakeData();
-setInterval(fetchEarthquakeData,10000);
+    fetchData();
 </script>
 </body>
 </html>
